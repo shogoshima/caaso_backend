@@ -3,7 +3,6 @@ package controllers
 import (
 	"caaso/models"
 	"caaso/services"
-	"fmt"
 	"net/http"
 	"time"
 
@@ -38,23 +37,24 @@ func GetSubscription(c *gin.Context) {
 func UpdateSubscription(c *gin.Context) {
 	uidRaw, ok := c.Get("currentUserId")
 	if !ok {
+		c.AbortWithStatus(http.StatusNoContent)
 		return
 	}
 	userId := uidRaw.(string)
 
 	ptRaw, ok := c.Get("planType")
 	if !ok {
+		c.AbortWithStatus(http.StatusNoContent)
 		return
 	}
 	planTypeStr := ptRaw.(string)
-
-	fmt.Println(userId, planTypeStr)
 
 	// mark them as subscribed
 	if err := services.DB.
 		Model(&models.User{}).
 		Where("id = ?", userId).
 		Update("is_subscribed", true).Error; err != nil {
+		c.AbortWithStatus(http.StatusInternalServerError)
 		return
 	}
 
@@ -69,8 +69,9 @@ func UpdateSubscription(c *gin.Context) {
 		Model(&models.User{}).
 		Where("id = ?", userId).
 		Update("expiration_date", expire).Error; err != nil {
+		c.AbortWithStatus(http.StatusInternalServerError)
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{"message": "Assinatura atualizada com sucesso"})
+	c.AbortWithStatus(http.StatusOK)
 }

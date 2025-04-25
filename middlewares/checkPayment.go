@@ -15,7 +15,6 @@ import (
 
 	"github.com/mercadopago/sdk-go/pkg/config"
 	"github.com/mercadopago/sdk-go/pkg/payment"
-	"github.com/mercadopago/sdk-go/pkg/refund"
 )
 
 // ConfirmPayment is your generic /go/payment/confirm endpoint.
@@ -35,12 +34,10 @@ func CheckPayment(c *gin.Context) {
 		return
 	}
 
-	// ACK immediately so MP stops retrying
-	c.AbortWithStatus(http.StatusOK)
-
 	// Initialize MP SDK client
 	cfg, err := config.New(services.AccessToken)
 	if err != nil {
+		c.AbortWithStatus(http.StatusInternalServerError)
 		return
 	}
 	client := payment.NewClient(cfg)
@@ -48,11 +45,14 @@ func CheckPayment(c *gin.Context) {
 	// Re-fetch the payment from Mercado Pago
 	mpResp, err := client.Get(context.Background(), paymentID)
 	if err != nil {
+		c.AbortWithStatus(http.StatusInternalServerError)
 		return
 	}
 
+	fmt.Println(mpResp.Status)
 	// Confirm it really is approved
 	if mpResp.Status != "approved" {
+		c.AbortWithStatus(http.StatusOK)
 		return
 	}
 
@@ -67,6 +67,7 @@ func CheckPayment(c *gin.Context) {
 		First(&existing).
 		Error; err != nil {
 		if !errors.Is(err, gorm.ErrRecordNotFound) {
+			c.AbortWithStatus(http.StatusInternalServerError)
 			return
 		}
 	}
@@ -74,15 +75,19 @@ func CheckPayment(c *gin.Context) {
 	// Se encontrar um pagamento diferente do atual, reembolsa
 	// Se não houver nenhum registro, também reembolsa
 	if existing.ID == 0 || existing.ID != paymentID {
-		refundClient := refund.NewClient(cfg)
-		resp, err := refundClient.Create(context.Background(), paymentID)
+		resp, err := services.RefundWithRetry(paymentID)
 		if err != nil {
+			c.AbortWithStatus(http.StatusInternalServerError)
 			return
 		}
+
 		fmt.Printf("✅ Payment %d refunded → refund id=%d status=%s\n",
 			paymentID, resp.ID, resp.Status,
 		)
+
+		c.AbortWithStatus(http.StatusOK)
 		return
+
 	}
 
 	// Update payment row
@@ -95,6 +100,7 @@ func CheckPayment(c *gin.Context) {
 		Where("id = ?", paymentID).
 		Updates(updates).
 		Error; err != nil {
+		c.AbortWithStatus(http.StatusInternalServerError)
 		return
 	}
 
