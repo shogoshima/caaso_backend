@@ -10,10 +10,10 @@ import (
 )
 
 func GetSubscription(c *gin.Context) {
-	nusp := c.Param("nusp")
+	token := c.Param("token")
 
 	var user models.User
-	services.DB.Where("nusp=?", nusp).Find(&user)
+	services.DB.Where("token=?", token).Find(&user)
 
 	if user.ID == "" {
 		c.JSON(http.StatusNotFound, gin.H{"message": "Usuário não encontrado"})

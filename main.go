@@ -8,6 +8,7 @@ import (
 	"log"
 
 	"github.com/gin-gonic/gin"
+	"github.com/robfig/cron/v3"
 )
 
 func init() {
@@ -31,35 +32,43 @@ func main() {
 		log.Fatalf("Migration failed: %v", err)
 	}
 
+	// Initialize cron job to reset all user tokens
+	c := cron.New()
+	c.AddFunc("@midnight", controllers.UpdateAllTokens)
+	c.Start()
+
 	// Subscription route (to fetch if the user has a plan)
-	routes.GET("/go/subscription/:nusp", controllers.GetSubscription)
+	routes.GET("/go/subscription/:token", controllers.GetSubscription)
 
-	// Benefit route (to fetch which benefits there are)
+	// Benefit route (to fetch which benefits or plans there are)
 	routes.GET("/go/benefits", controllers.GetBenefits)
-
-	// Plan route (to fetch which plan models there are)
 	routes.GET("/go/plans", controllers.GetPlans)
 
-	// User routes
-	routes.POST("/go/user/create", controllers.CreateUser)
-	routes.POST("/go/user/login", middlewares.GoogleAuth, controllers.GenerateJwtToken)
-	routes.GET("/go/user/profile", middlewares.CheckAuth, controllers.GetUserProfile)
+	// login route
+	routes.POST("/go/login", middlewares.GoogleAuth, controllers.GenerateJwtToken)
 
-	// Payment routes
-	routes.POST("/go/payment/create", middlewares.CheckAuth, controllers.CreatePayment)
+	// Mercado pago payment checking
 	routes.POST("/go/payment/confirm", middlewares.CheckPayment, controllers.UpdateSubscription)
-	routes.GET("/go/payment", middlewares.CheckAuth, controllers.GetPayment)
+
+	// Authenticated routes
+	userRoutes := routes.Group("/go/auth")
+	userRoutes.Use(middlewares.CheckAuth)
+	{
+		userRoutes.GET("/profile", middlewares.CheckAuth, controllers.GetUserProfile)
+		userRoutes.POST("/payment/create", middlewares.CheckAuth, controllers.CreatePayment)
+		userRoutes.GET("/payment", middlewares.CheckAuth, controllers.GetPayment)
+	}
 
 	// Admin user routes
 	adminRoutes := routes.Group("/go/admin")
 	adminRoutes.Use(middlewares.OriginWhitelist, middlewares.CheckAdmin)
 	{
-		routes.PUT("/go/admin/user/:id", controllers.UpdateUserProfile)
-		routes.GET("/go/admin/user/all", controllers.GetAllUsers)
-		routes.POST("/go/admin/benefit/create", controllers.CreateBenefit)
-		routes.PUT("/go/admin/benefit/:id", controllers.UpdateBenefit)
-		routes.DELETE("/go/admin/benefit/:id", controllers.DeleteBenefit)
-		routes.DELETE("/go/admin/user/:id", controllers.DeleteUser)
+		adminRoutes.PUT("/user/:id", controllers.UpdateUserProfile)
+		adminRoutes.GET("/user/all", controllers.GetAllUsers)
+		adminRoutes.POST("/benefit/create", controllers.CreateBenefit)
+		adminRoutes.PUT("/benefit/:id", controllers.UpdateBenefit)
+		adminRoutes.DELETE("/benefit/:id", controllers.DeleteBenefit)
+		adminRoutes.DELETE("/user/:id", controllers.DeleteUser)
 	}
 
 	routes.Run()

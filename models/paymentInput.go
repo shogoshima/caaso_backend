@@ -28,9 +28,9 @@ func (u UserTypes) String() string {
 	case Aloja:
 		return "Alojamento"
 	case Grad:
-		return "Graduacao"
+		return "Graduação"
 	case PostGrad:
-		return "PosGraduacao"
+		return "Pós-Graduação"
 	case Other:
 		return "Outros"
 	default:

@@ -1,7 +1,9 @@
 package middlewares
 
 import (
-	"caaso/controllers"
+	"caaso/models"
+	"caaso/services"
+	"fmt"
 	"net/http"
 	"strings"
 
@@ -18,22 +20,72 @@ func GoogleAuth(c *gin.Context) {
 		return
 	}
 
-	authToken := strings.Split(authHeader, " ")
-	if len(authToken) != 2 || authToken[0] != "Bearer" {
+	parts := strings.Split(authHeader, " ")
+	if len(parts) != 2 || parts[0] != "Bearer" {
 		c.JSON(http.StatusUnauthorized, gin.H{"message": "Invalid token format"})
 		c.AbortWithStatus(http.StatusUnauthorized)
 		return
 	}
+	idToken := parts[1]
 
-	tokenString := authToken[1]
-	token, err := controllers.VerifyIDToken(c, tokenString)
+	// Verify the ID token with Firebase
+	ctx := c.Request.Context()
+	token, err := services.AuthClient.VerifyIDToken(ctx, idToken)
 	if err != nil {
-		c.JSON(http.StatusUnauthorized, gin.H{"message": err.Error()})
-		c.AbortWithStatus(http.StatusUnauthorized)
+		c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": err.Error()})
 		return
 	}
 
-	c.Set("currentUserID", token.UID)
+	// Fetch the full Firebase user profile
+	userRecord, err := services.AuthClient.GetUser(ctx, token.UID)
+	if err != nil {
+		fmt.Println(err)
+		c.AbortWithStatusJSON(http.StatusInternalServerError, gin.H{"error": "failed to load user record"})
+		return
+	}
+
+	// Upsert the user in one round-trip
+	var user models.User
+	result := services.DB.
+		WithContext(ctx).
+		Where(models.User{ID: userRecord.UID}).
+		// only set these fields on INSERT
+		Attrs(models.User{
+			DisplayName: userRecord.DisplayName,
+			Email:       userRecord.Email,
+			PhotoUrl:    userRecord.PhotoURL,
+		}).
+		FirstOrCreate(&user)
+
+	if result.Error != nil {
+		c.AbortWithStatusJSON(http.StatusInternalServerError, gin.H{"error": result.Error.Error()})
+		return
+	}
+
+	// If the record already existed, check for profile changes & save
+	if result.RowsAffected == 0 {
+		changed := false
+		if user.DisplayName != userRecord.DisplayName {
+			user.DisplayName = userRecord.DisplayName
+			changed = true
+		}
+		if user.Email != userRecord.Email {
+			user.Email = userRecord.Email
+			changed = true
+		}
+		if user.PhotoUrl != userRecord.PhotoURL {
+			user.PhotoUrl = userRecord.PhotoURL
+			changed = true
+		}
+		if changed {
+			if err := services.DB.WithContext(ctx).Save(&user).Error; err != nil {
+				c.AbortWithStatusJSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+				return
+			}
+		}
+	}
+
+	c.Set("currentUser", user)
 
 	c.Next()
 
