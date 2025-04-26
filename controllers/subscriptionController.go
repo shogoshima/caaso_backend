@@ -31,6 +31,8 @@ func GetSubscription(c *gin.Context) {
 		"message":      "Usuário encontrado",
 		"displayName":  user.DisplayName,
 		"isSubscribed": user.IsSubscribed,
+		"photoUrl":     user.PhotoUrl,
+		"type":         user.Type,
 	})
 }
 
