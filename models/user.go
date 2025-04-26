@@ -7,7 +7,7 @@ import (
 type User struct {
 	ID             string    `json:"id" gorm:"primaryKey"`
 	Nusp           string    `json:"nusp" gorm:"unique"`
-	DisplayName    string    `json:"displayName" gorm:"unique"`
+	DisplayName    string    `json:"displayName"`
 	Email          string    `json:"email" gorm:"unique"`
 	PhotoUrl       string    `json:"photoUrl"`
 	IsSubscribed   bool      `json:"isSubscribed" gorm:"default:false"`
