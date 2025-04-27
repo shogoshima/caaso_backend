@@ -4,32 +4,33 @@ import (
 	"caaso/models"
 	"caaso/services"
 	"net/http"
+	"strings"
 
 	"github.com/gin-gonic/gin"
 )
 
 type Plan struct {
-	UserType models.UserTypes `json:"userType"`
-	PlanType models.PlanTypes `json:"planType"`
-	Amount   float64          `json:"amount"`
+	UserType string  `json:"userType"`
+	PlanType string  `json:"planType"`
+	Amount   float64 `json:"amount"`
 }
 
-var amounts = map[models.UserTypes]map[models.PlanTypes]float64{
-	models.Aloja: {
-		models.Monthly: 0.01,
-		models.Yearly:  0.01,
+var amounts = map[string]map[string]float64{
+	models.Aloja.String(): {
+		models.Monthly.String(): 0.01,
+		models.Yearly.String():  0.01,
 	},
-	models.Grad: {
-		models.Monthly: 0.01,
-		models.Yearly:  0.01,
+	models.Grad.String(): {
+		models.Monthly.String(): 0.01,
+		models.Yearly.String():  0.01,
 	},
-	models.PostGrad: {
-		models.Monthly: 0.01,
-		models.Yearly:  0.01,
+	models.PostGrad.String(): {
+		models.Monthly.String(): 0.01,
+		models.Yearly.String():  0.01,
 	},
-	models.Other: {
-		models.Monthly: 0.01,
-		models.Yearly:  0.01,
+	models.Other.String(): {
+		models.Monthly.String(): 0.01,
+		models.Yearly.String():  0.01,
 	},
 }
 
@@ -61,19 +62,24 @@ func CreatePayment(c *gin.Context) {
 		return
 	}
 
-	// Update the User.type column using the String() of the enum:
-	userTypeStr := input.UserType.String()
+	if strings.Split(User.Email, "@")[1] != "usp.br" {
+		if input.UserType != models.Other.String() {
+			c.JSON(http.StatusForbidden, gin.H{"message": "Você precisa possuir o e-mail @usp.br para escolher este plano"})
+			return
+		}
+	}
+
+	// Update the User.type column:
 	if err := services.DB.
 		Model(&User).
 		Where("id = ?", User.ID).
-		Update("type", userTypeStr).
+		Update("type", input.UserType).
 		Error; err != nil {
 
 		c.JSON(http.StatusInternalServerError, gin.H{"message": err.Error()})
 		return
 	}
 
-	// Lookup the amount:
 	amount := amounts[input.UserType][input.PlanType]
 
 	resource, err := services.CreatePayment(amount, User.Email, User.ID, input.PlanType)

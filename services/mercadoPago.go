@@ -1,7 +1,6 @@
 package services
 
 import (
-	"caaso/models"
 	"context"
 	"fmt"
 	"os"
@@ -22,7 +21,7 @@ func PaymentService() {
 	AccessToken = os.Getenv("MERCADO_PAGO_ACCESS_TOKEN")
 }
 
-func CreatePayment(amount float64, email string, userId string, planType models.PlanTypes) (*payment.Response, error) {
+func CreatePayment(amount float64, email string, userId string, planType string) (*payment.Response, error) {
 	cfg, err := config.New(AccessToken)
 	if err != nil {
 		fmt.Println(err)
@@ -46,7 +45,7 @@ func CreatePayment(amount float64, email string, userId string, planType models.
 		NotificationURL: baseURL + "/go/payment/confirm",
 		Metadata: map[string]any{
 			"userId":   userId,
-			"planType": planType.String(), // must be a string, e.g. "Monthly" or "Yearly"
+			"planType": planType, // must be a string, e.g. "Mensal" or "Anual"
 		},
 	}
 

@@ -62,7 +62,7 @@ func UpdateSubscription(c *gin.Context) {
 
 	// set the expiration
 	var expire time.Time
-	if planTypeStr == "Monthly" {
+	if planTypeStr == models.Monthly.String() {
 		expire = time.Now().AddDate(0, 1, 0)
 	} else {
 		expire = time.Now().AddDate(1, 0, 0)
