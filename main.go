@@ -32,9 +32,9 @@ func main() {
 		log.Fatalf("Migration failed: %v", err)
 	}
 
-	// Initialize cron job to reset all user tokens
+	// Initialize cron job to reset all user tokens every day at midnight (horário de brasília)
 	c := cron.New()
-	c.AddFunc("@midnight", controllers.UpdateAllTokens)
+	c.AddFunc("3 0 * * *", controllers.UpdateAllTokens)
 	c.Start()
 
 	// Subscription route (to fetch if the user has a plan)
@@ -44,7 +44,7 @@ func main() {
 	routes.GET("/go/benefits", controllers.GetBenefits)
 	routes.GET("/go/plans", controllers.GetPlans)
 
-	// login route
+	// Login route
 	routes.POST("/go/login", middlewares.GoogleAuth, controllers.GenerateJwtToken)
 
 	// Mercado pago payment checking
