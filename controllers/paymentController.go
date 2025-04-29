@@ -67,7 +67,7 @@ func CreatePayment(c *gin.Context) {
 		return
 	}
 
-	if strings.Contains(strings.Split(User.Email, "@")[1], "usp.br") {
+	if !strings.Contains(strings.Split(User.Email, "@")[1], "usp.br") {
 		if input.UserType != models.Other.String() {
 			c.JSON(http.StatusForbidden, gin.H{"message": "Você precisa estar logado com o e-mail @usp.br para escolher esse tipo de usuário"})
 			return
