@@ -19,8 +19,8 @@ func init() {
 
 func main() {
 
-	routes := gin.Default()
-	routes.SetTrustedProxies([]string{"172.19.0.0/16"})
+	router := gin.Default()
+	// router.SetTrustedProxies([]string{"172.19.0.0/16"})
 
 	// Connecting to database
 	if err := services.ConnectDB(); err != nil {
@@ -28,7 +28,12 @@ func main() {
 	}
 
 	// Run migrations explicitly
-	if err := services.DB.AutoMigrate(&models.User{}, &models.Payment{}, &models.Benefit{}); err != nil {
+	if err := services.DB.AutoMigrate(
+		&models.User{},
+		&models.Payment{},
+		&models.Benefit{},
+		&models.AlojaUser{},
+	); err != nil {
 		log.Fatalf("Migration failed: %v", err)
 	}
 
@@ -38,38 +43,43 @@ func main() {
 	c.Start()
 
 	// Subscription route (to fetch if the user has a plan)
-	routes.GET("/go/subscription/:token", controllers.GetSubscription)
+	router.GET("/go/subscription/:token", controllers.GetSubscription)
 
 	// Benefit route (to fetch which benefits or plans there are)
-	routes.GET("/go/benefits", controllers.GetBenefits)
-	routes.GET("/go/plans", controllers.GetPlans)
+	router.GET("/go/benefits", controllers.GetBenefits)
+	router.GET("/go/plans", controllers.GetPlans)
 
 	// Login route
-	routes.POST("/go/login", middlewares.GoogleAuth, controllers.GenerateJwtToken)
+	router.POST("/go/login", middlewares.GoogleAuth, controllers.GenerateJwtToken)
 
 	// Mercado pago payment checking
-	routes.POST("/go/payment/confirm", middlewares.CheckPayment, controllers.UpdateSubscription)
+	router.POST("/go/payment/confirm", middlewares.CheckPayment, controllers.UpdateSubscription)
 
-	// Authenticated routes
-	userRoutes := routes.Group("/go/auth")
-	userRoutes.Use(middlewares.CheckAuth)
+	// Authenticated router
+	userRouter := router.Group("/go/auth")
+	userRouter.Use(middlewares.CheckAuth)
 	{
-		userRoutes.GET("/profile", middlewares.CheckAuth, controllers.GetUserProfile)
-		userRoutes.POST("/payment/create", middlewares.CheckAuth, controllers.CreatePayment)
-		userRoutes.GET("/payment", middlewares.CheckAuth, controllers.GetPayment)
+		userRouter.GET("/profile", controllers.GetUserProfile)
+		userRouter.POST("/payment/create", controllers.CreatePayment)
+		userRouter.GET("/payment", controllers.GetPayment)
 	}
 
-	// Admin user routes
-	adminRoutes := routes.Group("/go/admin")
-	adminRoutes.Use(middlewares.OriginWhitelist, middlewares.CheckAdmin)
+	// Admin user router
+	adminRouter := router.Group("/go/admin")
+	adminRouter.Use(middlewares.OriginWhitelist, middlewares.CheckAdmin)
 	{
-		adminRoutes.PUT("/user/:id", controllers.UpdateUserProfile)
-		adminRoutes.GET("/user/all", controllers.GetAllUsers)
-		adminRoutes.POST("/benefit/create", controllers.CreateBenefit)
-		adminRoutes.PUT("/benefit/:id", controllers.UpdateBenefit)
-		adminRoutes.DELETE("/benefit/:id", controllers.DeleteBenefit)
-		adminRoutes.DELETE("/user/:id", controllers.DeleteUser)
+		adminRouter.PUT("/user/:id", controllers.UpdateUserProfile)
+		adminRouter.GET("/user/all", controllers.GetAllUsers)
+		adminRouter.DELETE("/user/:id", controllers.DeleteUser)
+
+		adminRouter.PUT("/benefit/:id", controllers.UpdateBenefit)
+		adminRouter.POST("/benefit/create", controllers.CreateBenefit)
+		adminRouter.DELETE("/benefit/:id", controllers.DeleteBenefit)
+
+		adminRouter.GET("/alojaUser/all", controllers.GetAlojaUsers)
+		adminRouter.POST("/alojaUser/create", controllers.CreateMultipleAlojaUsers)
+		adminRouter.DELETE("/alojaUser/:id", controllers.DeleteAlojaUser)
 	}
 
-	routes.Run()
+	router.Run()
 }

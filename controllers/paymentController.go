@@ -74,6 +74,19 @@ func CreatePayment(c *gin.Context) {
 		}
 	}
 
+	// Check if the user is a resident of alojamento
+	if input.UserType == models.Aloja.String() {
+		var alojaUser models.AlojaUser
+		if err := services.DB.
+			Model(&alojaUser).
+			Where("email = ?", User.Email).
+			First(&alojaUser).
+			Error; err != nil {
+			c.JSON(http.StatusForbidden, gin.H{"message": "Você não está cadastrado como morador do alojamento. Contate o CAASO caso tenha dúvidas"})
+			return
+		}
+	}
+
 	// Update the User.type column:
 	if err := services.DB.
 		Model(&User).

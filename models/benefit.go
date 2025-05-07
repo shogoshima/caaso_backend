@@ -1,12 +1,8 @@
 package models
 
-import "time"
-
 type Benefit struct {
-	ID          uint   `json:"id" gorm:"primary_key"`
+	ID          uint   `json:"id,omitempty" gorm:"primaryKey"`
 	Title       string `json:"title" gorm:"unique"`
 	Description string `json:"description"`
 	PhotoUrl    string `json:"photoUrl"`
-	CreatedAt   time.Time
-	UpdatedAt   time.Time
 }
