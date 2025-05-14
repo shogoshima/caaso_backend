@@ -20,7 +20,7 @@ func init() {
 func main() {
 
 	router := gin.Default()
-	// router.SetTrustedProxies([]string{"172.19.0.0/16"})
+	router.SetTrustedProxies([]string{"172.19.0.0/16"})
 
 	// Connecting to database
 	if err := services.ConnectDB(); err != nil {
@@ -50,7 +50,7 @@ func main() {
 	router.GET("/go/plans", controllers.GetPlans)
 
 	// Login route
-	router.POST("/go/login", middlewares.GoogleAuth, controllers.GenerateJwtToken)
+	router.POST("/go/login", controllers.Login)
 
 	// Mercado pago payment checking
 	router.POST("/go/payment/confirm", middlewares.CheckPayment, controllers.UpdateSubscription)

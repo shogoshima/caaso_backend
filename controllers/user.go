@@ -6,11 +6,9 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
-	"os"
 	"time"
 
 	"github.com/gin-gonic/gin"
-	"github.com/golang-jwt/jwt/v4"
 	"gorm.io/gorm"
 )
 
@@ -43,35 +41,6 @@ func GetAllUsers(c *gin.Context) {
 	c.JSON(200, gin.H{
 		"message": "Usuários encontrados",
 		"users":   users,
-	})
-
-}
-
-func GenerateJwtToken(c *gin.Context) {
-
-	userValue, exists := c.Get("currentUser")
-	if !exists {
-		c.JSON(http.StatusUnauthorized, gin.H{"message": "Usuário não autenticado"})
-		return
-	}
-	user := userValue.(models.User)
-
-	generateToken := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{
-		"id":  user.ID,
-		"exp": time.Now().Add(time.Hour * 24 * 14).Unix(),
-	})
-
-	sessionToken, err := generateToken.SignedString([]byte(os.Getenv("JWT_SECRET")))
-
-	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"message": "Erro ao gerar token, tente novamente"})
-		return
-	}
-
-	c.JSON(http.StatusOK, gin.H{
-		"message": "Token gerado com sucesso",
-		"token":   sessionToken,
-		"user":    user,
 	})
 
 }

@@ -1,4 +1,4 @@
-package middlewares
+package controllers
 
 import (
 	"caaso/models"
@@ -10,22 +10,21 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-func GoogleAuth(c *gin.Context) {
-
+func Login(c *gin.Context) {
 	authHeader := c.GetHeader("Authorization")
-
 	if authHeader == "" {
-		c.JSON(http.StatusUnauthorized, gin.H{"message": "Authorization header is missing"})
-		c.AbortWithStatus(http.StatusUnauthorized)
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Missing token"})
+		c.Abort()
 		return
 	}
 
 	parts := strings.Split(authHeader, " ")
 	if len(parts) != 2 || parts[0] != "Bearer" {
-		c.JSON(http.StatusUnauthorized, gin.H{"message": "Invalid token format"})
-		c.AbortWithStatus(http.StatusUnauthorized)
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid token format"})
+		c.Abort()
 		return
 	}
+
 	idToken := parts[1]
 
 	// Verify the ID token with Firebase
@@ -43,6 +42,8 @@ func GoogleAuth(c *gin.Context) {
 		c.AbortWithStatusJSON(http.StatusInternalServerError, gin.H{"error": "failed to load user record"})
 		return
 	}
+
+	fmt.Println("User record:", userRecord)
 
 	// Upsert the user in one round-trip
 	var user models.User
@@ -69,10 +70,6 @@ func GoogleAuth(c *gin.Context) {
 			user.DisplayName = userRecord.DisplayName
 			changed = true
 		}
-		if user.Email != userRecord.Email {
-			user.Email = userRecord.Email
-			changed = true
-		}
 		if user.PhotoUrl != userRecord.PhotoURL {
 			user.PhotoUrl = userRecord.PhotoURL
 			changed = true
@@ -85,8 +82,7 @@ func GoogleAuth(c *gin.Context) {
 		}
 	}
 
-	c.Set("currentUser", user)
-
-	c.Next()
-
+	c.JSON(http.StatusOK, gin.H{
+		"user": user,
+	})
 }
