@@ -87,7 +87,13 @@ func CheckPayment(c *gin.Context) {
 
 		c.AbortWithStatus(http.StatusOK)
 		return
+	}
 
+	// Idempotency check
+	if existing.IsPaid {
+		fmt.Printf("⚠️ Payment %d already processed, skipping\n", paymentID)
+		c.AbortWithStatus(http.StatusOK)
+		return
 	}
 
 	// Update payment row
@@ -102,6 +108,36 @@ func CheckPayment(c *gin.Context) {
 		Error; err != nil {
 		c.AbortWithStatus(http.StatusInternalServerError)
 		return
+	}
+
+	// The payment is confirmed. We will update the monthly revenue
+	// If there is no revenue record for this month, create one
+	// If there is, just update the amount
+	var revenue models.Revenue
+	if err := services.DB.
+		Where("month = ? AND year = ?", time.Now().Format("01"), time.Now().Year()).
+		First(&revenue).
+		Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			revenue = models.Revenue{
+				Amount: float64(mpResp.TransactionAmount),
+				Month:  time.Now().Format("01"),
+				Year:   time.Now().Year(),
+			}
+			if err := services.DB.Create(&revenue).Error; err != nil {
+				c.AbortWithStatus(http.StatusInternalServerError)
+				return
+			}
+		} else {
+			c.AbortWithStatus(http.StatusInternalServerError)
+			return
+		}
+	} else {
+		revenue.Amount += float64(mpResp.TransactionAmount)
+		if err := services.DB.Save(&revenue).Error; err != nil {
+			c.AbortWithStatus(http.StatusInternalServerError)
+			return
+		}
 	}
 
 	// Load the user into context and pass to next middleware

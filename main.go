@@ -33,6 +33,7 @@ func main() {
 		&models.Payment{},
 		&models.Benefit{},
 		&models.AlojaUser{},
+		&models.Revenue{},
 	); err != nil {
 		log.Fatalf("Migration failed: %v", err)
 	}
