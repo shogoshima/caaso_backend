@@ -80,6 +80,8 @@ func main() {
 		adminRouter.GET("/alojaUser/all", controllers.GetAlojaUsers)
 		adminRouter.POST("/alojaUser/create", controllers.CreateMultipleAlojaUsers)
 		adminRouter.DELETE("/alojaUser/:id", controllers.DeleteAlojaUser)
+
+		adminRouter.GET("/revenue/all", controllers.GetRevenues)
 	}
 
 	router.Run()
