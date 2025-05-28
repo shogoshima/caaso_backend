@@ -8,6 +8,7 @@ import (
 	"log"
 
 	"github.com/gin-gonic/gin"
+	"github.com/robfig/cron/v3"
 )
 
 func init() {
@@ -18,8 +19,8 @@ func init() {
 
 func main() {
 
-	routes := gin.Default()
-	routes.SetTrustedProxies([]string{"172.19.0.0/16"})
+	router := gin.Default()
+	router.SetTrustedProxies([]string{"172.19.0.0/16"})
 
 	// Connecting to database
 	if err := services.ConnectDB(); err != nil {
@@ -27,40 +28,61 @@ func main() {
 	}
 
 	// Run migrations explicitly
-	if err := services.DB.AutoMigrate(&models.User{}, &models.Payment{}, &models.Benefit{}); err != nil {
+	if err := services.DB.AutoMigrate(
+		&models.User{},
+		&models.Payment{},
+		&models.Benefit{},
+		&models.AlojaUser{},
+		&models.Revenue{},
+	); err != nil {
 		log.Fatalf("Migration failed: %v", err)
 	}
 
+	// Initialize cron job to reset all user tokens every day at midnight (horário de brasília)
+	c := cron.New()
+	c.AddFunc("3 0 * * *", controllers.UpdateAllTokens)
+	c.Start()
+
 	// Subscription route (to fetch if the user has a plan)
-	routes.GET("/go/subscription/:nusp", controllers.GetSubscription)
+	router.GET("/go/subscription/:token", controllers.GetSubscription)
 
-	// Benefit route (to fetch which benefits there are)
-	routes.GET("/go/benefits", controllers.GetBenefits)
+	// Benefit route (to fetch which benefits or plans there are)
+	router.GET("/go/benefits", controllers.GetBenefits)
+	router.GET("/go/plans", controllers.GetPlans)
 
-	// Plan route (to fetch which plan models there are)
-	routes.GET("/go/plans", controllers.GetPlans)
+	// Login route
+	router.POST("/go/login", controllers.Login)
 
-	// User routes
-	routes.POST("/go/user/create", controllers.CreateUser)
-	routes.POST("/go/user/login", middlewares.GoogleAuth, controllers.GenerateJwtToken)
-	routes.GET("/go/user/profile", middlewares.CheckAuth, controllers.GetUserProfile)
+	// Mercado pago payment checking
+	router.POST("/go/payment/confirm", middlewares.CheckPayment, controllers.UpdateSubscription)
 
-	// Payment routes
-	routes.POST("/go/payment/create", middlewares.CheckAuth, controllers.CreatePayment)
-	routes.POST("/go/payment/confirm", middlewares.CheckPayment, controllers.UpdateSubscription)
-	routes.GET("/go/payment", middlewares.CheckAuth, controllers.GetPayment)
-
-	// Admin user routes
-	adminRoutes := routes.Group("/go/admin")
-	adminRoutes.Use(middlewares.OriginWhitelist, middlewares.CheckAdmin)
+	// Authenticated router
+	userRouter := router.Group("/go/auth")
+	userRouter.Use(middlewares.CheckAuth)
 	{
-		routes.PUT("/go/admin/user/:id", controllers.UpdateUserProfile)
-		routes.GET("/go/admin/user/all", controllers.GetAllUsers)
-		routes.POST("/go/admin/benefit/create", controllers.CreateBenefit)
-		routes.PUT("/go/admin/benefit/:id", controllers.UpdateBenefit)
-		routes.DELETE("/go/admin/benefit/:id", controllers.DeleteBenefit)
-		routes.DELETE("/go/admin/user/:id", controllers.DeleteUser)
+		userRouter.GET("/profile", controllers.GetUserProfile)
+		userRouter.POST("/payment/create", controllers.CreatePayment)
+		userRouter.GET("/payment", controllers.GetPayment)
 	}
 
-	routes.Run()
+	// Admin user router
+	adminRouter := router.Group("/go/admin")
+	adminRouter.Use(middlewares.OriginWhitelist, middlewares.CheckAdmin)
+	{
+		adminRouter.PUT("/user/:id", controllers.UpdateUserProfile)
+		adminRouter.GET("/user/all", controllers.GetAllUsers)
+		adminRouter.DELETE("/user/:id", controllers.DeleteUser)
+
+		adminRouter.PUT("/benefit/:id", controllers.UpdateBenefit)
+		adminRouter.POST("/benefit/create", controllers.CreateBenefit)
+		adminRouter.DELETE("/benefit/:id", controllers.DeleteBenefit)
+
+		adminRouter.GET("/alojaUser/all", controllers.GetAlojaUsers)
+		adminRouter.POST("/alojaUser/create", controllers.CreateMultipleAlojaUsers)
+		adminRouter.DELETE("/alojaUser/:id", controllers.DeleteAlojaUser)
+
+		adminRouter.GET("/revenue/all", controllers.GetRevenues)
+	}
+
+	router.Run()
 }

@@ -26,7 +26,7 @@ func GetBenefits(c *gin.Context) {
 
 func CreateBenefit(c *gin.Context) {
 
-	var benefitInput models.BenefitInput
+	var benefitInput models.Benefit
 
 	if err := c.ShouldBindJSON(&benefitInput); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"message": err.Error()})
@@ -63,7 +63,7 @@ func UpdateBenefit(c *gin.Context) {
 		return
 	}
 
-	var benefitInput models.BenefitInput
+	var benefitInput models.Benefit
 	if err := c.ShouldBindJSON(&benefitInput); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"message": err.Error()})
 		return

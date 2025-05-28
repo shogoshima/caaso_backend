@@ -2,6 +2,7 @@ package services
 
 import (
 	"context"
+	"log"
 
 	firebase "firebase.google.com/go/v4"
 	"firebase.google.com/go/v4/auth"
@@ -14,9 +15,10 @@ var (
 
 func InitFirebase() error {
 	opt := option.WithCredentialsFile("./credentials.json")
-	app, err := firebase.NewApp(context.Background(), nil, opt)
+	config := &firebase.Config{ProjectID: "caaso-app"}
+	app, err := firebase.NewApp(context.Background(), config, opt)
 	if err != nil {
-		return err
+		log.Fatalf("error initializing app: %v\n", err)
 	}
 
 	// Initialize Auth client once

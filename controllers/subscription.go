@@ -3,7 +3,6 @@ package controllers
 import (
 	"caaso/models"
 	"caaso/services"
-	"fmt"
 	"net/http"
 	"time"
 
@@ -11,10 +10,10 @@ import (
 )
 
 func GetSubscription(c *gin.Context) {
-	nusp := c.Param("nusp")
+	token := c.Param("token")
 
 	var user models.User
-	services.DB.Where("nusp=?", nusp).Find(&user)
+	services.DB.Where("token=?", token).Find(&user)
 
 	if user.ID == "" {
 		c.JSON(http.StatusNotFound, gin.H{"message": "Usuário não encontrado"})
@@ -32,35 +31,38 @@ func GetSubscription(c *gin.Context) {
 		"message":      "Usuário encontrado",
 		"displayName":  user.DisplayName,
 		"isSubscribed": user.IsSubscribed,
+		"photoUrl":     user.PhotoUrl,
+		"type":         user.Type,
 	})
 }
 
 func UpdateSubscription(c *gin.Context) {
 	uidRaw, ok := c.Get("currentUserId")
 	if !ok {
+		c.AbortWithStatus(http.StatusNoContent)
 		return
 	}
 	userId := uidRaw.(string)
 
 	ptRaw, ok := c.Get("planType")
 	if !ok {
+		c.AbortWithStatus(http.StatusNoContent)
 		return
 	}
 	planTypeStr := ptRaw.(string)
-
-	fmt.Println(userId, planTypeStr)
 
 	// mark them as subscribed
 	if err := services.DB.
 		Model(&models.User{}).
 		Where("id = ?", userId).
 		Update("is_subscribed", true).Error; err != nil {
+		c.AbortWithStatus(http.StatusInternalServerError)
 		return
 	}
 
 	// set the expiration
 	var expire time.Time
-	if planTypeStr == "Monthly" {
+	if planTypeStr == models.Monthly.String() {
 		expire = time.Now().AddDate(0, 1, 0)
 	} else {
 		expire = time.Now().AddDate(1, 0, 0)
@@ -69,8 +71,9 @@ func UpdateSubscription(c *gin.Context) {
 		Model(&models.User{}).
 		Where("id = ?", userId).
 		Update("expiration_date", expire).Error; err != nil {
+		c.AbortWithStatus(http.StatusInternalServerError)
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{"message": "Assinatura atualizada com sucesso"})
+	c.AbortWithStatus(http.StatusOK)
 }

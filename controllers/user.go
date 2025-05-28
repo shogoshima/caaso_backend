@@ -4,13 +4,11 @@ import (
 	"caaso/models"
 	"caaso/services"
 	"errors"
+	"fmt"
 	"net/http"
-	"os"
 	"time"
 
-	"firebase.google.com/go/v4/auth"
 	"github.com/gin-gonic/gin"
-	"github.com/golang-jwt/jwt/v4"
 	"gorm.io/gorm"
 )
 
@@ -47,79 +45,6 @@ func GetAllUsers(c *gin.Context) {
 
 }
 
-func CreateUser(c *gin.Context) {
-
-	var userInput models.UserInput
-
-	if err := c.ShouldBindJSON(&userInput); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"message": err.Error()})
-		return
-	}
-
-	var userFound models.User
-	result := services.DB.Where("id=?", userInput.ID).Find(&userFound)
-	if result.Error != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"message": result.Error.Error()})
-		return
-	}
-
-	user := models.User{
-		ID:          userInput.ID,
-		Nusp:        userInput.Nusp,
-		DisplayName: userInput.DisplayName,
-		Email:       userInput.Email,
-		PhotoUrl:    userInput.PhotoUrl,
-	}
-
-	result = services.DB.Create(&user)
-	if result.Error != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"message": result.Error.Error()})
-		return
-	}
-
-	c.JSON(http.StatusOK, gin.H{"message": "Usuário criado com sucesso", "user": user})
-
-}
-
-func VerifyIDToken(c *gin.Context, idToken string) (*auth.Token, error) {
-	token, err := services.AuthClient.VerifyIDToken(c.Request.Context(), idToken)
-	if err != nil {
-		return nil, err
-	}
-	return token, nil
-}
-
-func GenerateJwtToken(c *gin.Context) {
-
-	userID, _ := c.Get("currentUserID")
-
-	generateToken := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{
-		"id":  userID,
-		"exp": time.Now().Add(time.Hour * 24 * 14).Unix(),
-	})
-
-	sessionToken, err := generateToken.SignedString([]byte(os.Getenv("JWT_SECRET")))
-
-	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"message": "Erro ao gerar token, tente novamente"})
-		return
-	}
-
-	var user models.User
-	result := services.DB.Where("id=?", userID).Find(&user)
-	if result.Error != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"message": result.Error.Error()})
-		return
-	}
-
-	c.JSON(http.StatusOK, gin.H{
-		"message": "Token gerado com sucesso",
-		"token":   sessionToken,
-		"user":    user,
-	})
-
-}
-
 func UpdateUserProfile(c *gin.Context) {
 	id := c.Param("id")
 
@@ -141,15 +66,6 @@ func UpdateUserProfile(c *gin.Context) {
 		return
 	}
 
-	// Check if Nusp is being changed and update NuspModified
-	if user.Nusp != userInput.Nusp {
-		user.NuspModified = true
-	}
-
-	println(userInput.IsSubscribed)
-
-	// Update fields from input
-	user.Nusp = userInput.Nusp
 	user.DisplayName = userInput.DisplayName
 	user.Email = userInput.Email
 	user.IsSubscribed = userInput.IsSubscribed
@@ -187,4 +103,20 @@ func DeleteUser(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, gin.H{"message": "Usuário deletado com sucesso"})
+}
+
+func UpdateAllTokens() {
+	err := services.DB.
+		// temporarily allow an update without WHERE
+		Session(&gorm.Session{AllowGlobalUpdate: true}).
+		Model(&models.User{}).
+		UpdateColumns(map[string]any{
+			"token": gorm.Expr("gen_random_uuid()"),
+		}).Error
+
+	if err != nil {
+		fmt.Println("error updating tokens:", err)
+		return
+	}
+	fmt.Println("successfully updated tokens")
 }
